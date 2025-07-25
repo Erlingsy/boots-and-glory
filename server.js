@@ -1,77 +1,147 @@
-
 const express = require('express');
-const fileUpload = require('express-fileupload');
-const bodyParser = require('body-parser');
+const multer = require('multer');
+const path = require('path');
 const fs = require('fs');
+const cors = require('cors');
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
-app.use(fileUpload());
-app.use(express.static('public'));
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-const DB_FILE = './db.json';
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-function loadDB() {
-    return JSON.parse(fs.readFileSync(DB_FILE));
-}
+// In-memory database
+let registrations = [];
 
-function saveDB(data) {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-}
+// File storage setup
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadPath = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    const uniqueName = Date.now() + '-' + file.originalname;
+    cb(null, uniqueName);
+  }
+});
 
+const upload = multer({ storage });
+
+// Homepage
 app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/public/index.html');
+  res.send('✅ Boots and Glory Tournament Registration Backend is Running');
 });
 
-app.get('/rules', (req, res) => {
-    res.sendFile(__dirname + '/public/rules.html');
+// Registration endpoint
+app.post('/register', upload.single('receipt'), (req, res) => {
+  const { name, phone } = req.body;
+  const receiptFile = req.file?.filename || null;
+
+  const newRegistration = {
+    id: Date.now().toString(),
+    name,
+    phone,
+    receipt: receiptFile,
+    approved: false
+  };
+
+  registrations.push(newRegistration);
+  res.status(200).json({ message: 'Registration received. Admin will contact you soon.' });
 });
 
-app.get('/register', (req, res) => {
-    res.sendFile(__dirname + '/public/register.html');
+// Admin fetch registrations
+app.get('/admin/registrations', (req, res) => {
+  res.status(200).json(registrations);
 });
 
-app.post('/submit-registration', (req, res) => {
-    const { phone, contact } = req.body;
-    const file = req.files?.receipt;
+// Admin approve
+app.post('/admin/approve/:id', (req, res) => {
+  const id = req.params.id;
+  const registration = registrations.find(r => r.id === id);
+  if (!registration) return res.status(404).json({ message: 'User not found' });
 
-    if (!file) return res.status(400).send('No file uploaded.');
-
-    const filename = Date.now() + '_' + file.name;
-    file.mv(__dirname + '/uploads/' + filename);
-
-    const db = loadDB();
-    db.registrations.push({ phone, contact, receipt: filename, approved: false });
-    saveDB(db);
-
-    res.send('Registration submitted. Admin will get back to you shortly.');
-});
-
-app.get('/admin', (req, res) => {
-    res.sendFile(__dirname + '/public/admin.html');
-});
-
-app.post('/admin-login', (req, res) => {
-    const { password } = req.body;
-    if (password === 'admin123') {
-        const db = loadDB();
-        res.json(db.registrations);
-    } else {
-        res.status(403).send('Invalid password.');
-    }
-});
-
-app.post('/approve', (req, res) => {
-    const { phone } = req.body;
-    const db = loadDB();
-    const entry = db.registrations.find(r => r.phone === phone);
-    if (entry) entry.approved = true;
-    saveDB(db);
-    res.send('User approved.');
+  registration.approved = true;
+  res.status(200).json({ message: 'User approved successfully' });
 });
 
 app.listen(PORT, () => {
-    console.log(`Boots and Glory site running on port ${PORT}`);
+  console.log(`Boots and Glory site running on port ${PORT}`);
+});const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const cors = require('cors');
+
+const app = express();
+const PORT = process.env.PORT || 10000;
+
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// In-memory database
+let registrations = [];
+
+// File storage setup
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadPath = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    const uniqueName = Date.now() + '-' + file.originalname;
+    cb(null, uniqueName);
+  }
+});
+
+const upload = multer({ storage });
+
+// Homepage
+app.get('/', (req, res) => {
+  res.send('✅ Boots and Glory Tournament Registration Backend is Running');
+});
+
+// Registration endpoint
+app.post('/register', upload.single('receipt'), (req, res) => {
+  const { name, phone } = req.body;
+  const receiptFile = req.file?.filename || null;
+
+  const newRegistration = {
+    id: Date.now().toString(),
+    name,
+    phone,
+    receipt: receiptFile,
+    approved: false
+  };
+
+  registrations.push(newRegistration);
+  res.status(200).json({ message: 'Registration received. Admin will contact you soon.' });
+});
+
+// Admin fetch registrations
+app.get('/admin/registrations', (req, res) => {
+  res.status(200).json(registrations);
+});
+
+// Admin approve
+app.post('/admin/approve/:id', (req, res) => {
+  const id = req.params.id;
+  const registration = registrations.find(r => r.id === id);
+  if (!registration) return res.status(404).json({ message: 'User not found' });
+
+  registration.approved = true;
+  res.status(200).json({ message: 'User approved successfully' });
+});
+
+app.listen(PORT, () => {
+  console.log(`Boots and Glory site running on port ${PORT}`);
 });
